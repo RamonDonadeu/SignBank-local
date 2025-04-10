@@ -1,0 +1,16 @@
+FROM node:20
+
+WORKDIR /app
+COPY package*.json ./
+
+ENV DATABASE_URL=${DATABASE_URL_DOCKER}
+ENV ADMIN_EMAIL=${ADMIN_EMAIL}
+ENV ADMIN_PASSWORD=${ADMIN_PASSWORD}
+
+RUN npm install
+COPY . .
+
+# RUN npx prisma generate
+# RUN npx prisma db seed
+
+CMD ["npm", "run", "start:docker:dev"]

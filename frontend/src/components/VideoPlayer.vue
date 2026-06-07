@@ -10,11 +10,12 @@
           class="video-container"
         >
           <video 
-            :src="currentVideo!.url"
+            :src="getVideoUrl(currentVideo!.url)"
             class="q-mb-md"
             style="height: 250px; width: 250px; object-fit: cover"
             loop
             autoplay
+            muted
           />
           
           <div class="text-caption q-mb-md">
@@ -59,36 +60,53 @@
         </div>
       </q-card-section>
     </q-card>
+    <!-- Sign information below the video -->
+    <SignInfo 
+      :video="currentVideo" 
+      :is-edit-mode="editMode"
+      @update:video="updateVideo"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { VideoInfo } from 'src/types/word'
+import { Video } from 'src/types/models'
 import translate from 'src/utils/translate'
+import SignInfo from './SignInfo.vue'
+import { getVideoUrl } from 'src/utils/videoUrl'
 
 interface Props {
-  videos: VideoInfo[]
+  videos: Video[]
+  editMode: boolean
 }
 
-const props = defineProps<Props>()
+const emit = defineEmits<{
+  (e: 'update:videos', videos: Video[]): void
+}>()
+const { videos, editMode = false } = defineProps<Props>()
 
 const currentIndex = ref(0)
 
 // Reset current index when videos change
-watch(() => props.videos, () => {
+watch(() => videos, () => {
   currentIndex.value = 0
 }, { immediate: true })
 
 const currentVideo = computed(() => {
-  if (props.videos.length === 0) {
-    return { url: '', angle: '' } as VideoInfo
+  if (videos.length === 0) {
+    return {
+      url: '',
+      angle: '',
+      priority: 0,
+      id: '',
+    } as Video
   }
-  return props.videos[currentIndex.value]
+  return videos[currentIndex.value] as Video
 })
 
 function nextVideo() {
-  if (currentIndex.value < props.videos.length - 1) {
+  if (currentIndex.value < videos.length - 1) {
     currentIndex.value++
   }
 }
@@ -97,6 +115,11 @@ function prevVideo() {
   if (currentIndex.value > 0) {
     currentIndex.value--
   }
+}
+
+function updateVideo(video: Video) {
+  const updatedVideos = videos.map((v, index) => index === currentIndex.value ? video : v);
+  emit('update:videos', updatedVideos);
 }
 </script>
 

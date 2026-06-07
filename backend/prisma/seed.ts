@@ -1,872 +1,1582 @@
-import { PrismaClient, Role, Language, LexicalCategory, RelationType, Hand, WordStatus } from '@prisma/client';
+import { PrismaClient, Role, Language, LexicalCategory, Hand, GlossStatus, ConfigurationChange, RelationBetweenArticulators, Location, MovementType, MovementRelatedOrientation, OrientationChange, ContactType, OrientationRelatedToLocation, HandConfiguration, RelationType, MovementDirection } from '@prisma/client';
 import * as argon2 from 'argon2';
 
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('Start seeding...');
-  
-  // Clear existing data - MongoDB version
-  try {
-    // Clean up in reverse order of dependencies
-    console.log('Deleting existing data...');
-    await prisma.wordEditHistoric.deleteMany({});
-    await prisma.wordEdit.deleteMany({});
-    await prisma.wordRequest.deleteMany({});
-    await prisma.words.deleteMany({});
-    await prisma.dialect.deleteMany({});
-    await prisma.users.deleteMany({});
-    console.log('Deleted existing data');
-  } catch (error) {
-    console.error('Error cleaning up data:', error);
-    // Continue with seeding even if cleanup fails
+  // Delete all existing data
+  await prisma.$transaction([
+    prisma.exampleTranslation.deleteMany(),
+    prisma.senseTranslation.deleteMany(),
+    prisma.example.deleteMany(),
+    prisma.definitionTranslation.deleteMany(),
+    prisma.definition.deleteMany(),
+    prisma.video.deleteMany(),
+    prisma.minimalPair.deleteMany(),
+    prisma.signVideo.deleteMany(),
+    prisma.dictionaryEntry.deleteMany(),
+    prisma.relatedGloss.deleteMany(),
+    prisma.sense.deleteMany(),
+    prisma.glossRequest.deleteMany(),
+    prisma.glossData.deleteMany(),
+    prisma.user.deleteMany(),
+  ]);
+
+  // Create 10 admin users
+  const adminUsers = [];
+  for (let i = 1; i <= 10; i++) {
+    const password = await argon2.hash(`admin${i}123`);
+    const admin = await prisma.user.create({
+      data: {
+        email: `admin${i}@signbank.com`,
+        username: `admin${i}`,
+        password: password,
+        role: Role.ADMIN,
+        name: `Admin`,
+        lastName: `${i}`,
+      },
+    });
+    adminUsers.push(admin);
   }
 
-  // Create users
-  const adminPassword = await argon2.hash('admin123');
-  const userPassword = await argon2.hash('user123');
-  
-  console.log('Creating users...');
-  const admin = await prisma.users.create({
-    data: {
-      username: 'admin',
-      email: 'admin@signbank.com',
-      password: adminPassword,
-      role: Role.ADMIN,
-    },
+  console.log('Created admin users:');
+  adminUsers.forEach(admin => {
+    console.log(`Username: ${admin.username} | Email: ${admin.email} | Password: admin${admin.username.slice(5)}123`);
   });
 
-  const user1 = await prisma.users.create({
+  // Create COLL gloss data
+  const collGlossData = await prisma.glossData.create({
     data: {
-      username: 'maria',
-      email: 'maria@example.com',
-      password: userPassword,
-      role: Role.USER,
-    },
-  });
-
-  const user2 = await prisma.users.create({
-    data: {
-      username: 'jordi',
-      email: 'jordi@example.com',
-      password: userPassword,
-      role: Role.USER,
-    },
-  });
-  console.log('Created users');
-
-  // Create dialects
-  console.log('Creating dialects...');
-  const barcelonaDialect = await prisma.dialect.create({
-    data: {
-      name: 'Barcelona',
-      region: 'Catalonia',
-      mapCoordinates: '41.3851,2.1734',
-      description: 'The dialect of Catalan Sign Language used in Barcelona area',
-    },
-  });
-
-  const gironaDialect = await prisma.dialect.create({
-    data: {
-      name: 'Girona',
-      region: 'Catalonia',
-      mapCoordinates: '41.9794,2.8214',
-      description: 'The dialect of Catalan Sign Language used in Girona area',
-    },
-  });
-  console.log('Created dialects');
-
-  // Create words with new schema structure
-  console.log('Creating words...');
-
-  await prisma.words.create({
-    data: {
-      status: WordStatus.PUBLISHED,
+      gloss: 'COLL',
       currentVersion: 1,
-      isCreatedFromRequest: false,
-      isCreatedFromEdit: false,
-      
-      // Word data using the Word type
-      wordData: {
-        word: 'Cafe',
-        isNative: true,
-        register: 'Estàndard',
-        lexicalCategory: LexicalCategory.NOUN,
-        dominantHand: Hand.RIGHT,
-        facialExpression: 'Neutral',
-        hasContact: false,
-        
-        senses: [
-          {
-            priority: 1,
-            dominantHand: Hand.RIGHT,
-            facialExpression: 'Neutral',
-            hasContact: true,
-            movementType: 'Moviment del signe Cafè',
-            nonManualComponents: 'Pronunciar Cafe',
-            morphologicalVariants: '-',
-            phonologicalTranscription: '-',
-            usageFrequency: 'Comú',
-            usageEra: 'Contemporani',
-            
-            descriptions: [
-              {
-                text: 'Arbret del gènere Coffea, de la família de les rubiàcies, conreat als països tropicals, de fulles lluents i flors blanques, els fruits del qual contenen ordinàriament dues llavors planoconvexes amb un solc al llarg de la cara plana.',
-                examples: ['Als matins prenem un cafe', 'El meu amic beu cafe cada dia'],
-                translations: [
-                  { text: 'Coffe', language: Language.ENGLISH },
-                  { text: 'Café', language: Language.SPANISH }
-                ]
-              },
-              {
-                text: 'Cafè moca Cafè: d’una varietat procedent d’Aràbia.',
-                examples: [],
-                translations: []
-              },
-              {
-                text: 'Llavor del cafè: Torrar cafè. Cafè molt. Cafè descafeïnat.',
-                examples: [],
-                translations: []
-              },
-              {
-                text: 'Cafè torrefacte: Cafè que ha estat barrejat amb sucre en torrar-lo.',
-                examples: [],
-                translations: []
-              },
-              {
-                text: 'Beguda feta per infusió de les llavors de cafè torrades i moltes. Prendre cafè. Una tassa de cafè. Cafè amb llet.',
-                examples: [],
-                translations: []
-              },
-              {
-                text: 'cCafè curt: Cafè elaborat amb menys aigua de la que se sol usar per a la mateixa quantitat de cafè molt.',
-                examples: [],
-                translations: []
-              },
-              {
-                text: 'Cafè exprés: Cafè fet amb una cafetera exprés. Posi’m dos cafès exprés, si us plau.',
-                examples: [],
-                translations: []
-              },
-              {
-                text: 'Cafè irlandès: Cafè amb whisky i nata.',
-                examples: [],
-                translations: []
-              },
-              {
-                text: 'Cafè llarg: Cafè elaborat amb més aigua de la que se sol usar per a la mateixa quantitat de cafè molt.',
-                examples: [],
-                translations: []
-              },
-              {
-                text: 'Establiment on serveixen cafè i també licors, refrescos, etc. El Cafè de la Rambla. L’amo del cafè.',
-                examples: [],
-                translations: []
-              },
-              {
-                text: 'Cafè concert: Cafè on es presenten números de música o de cant en un petit escenari.',
-                examples: [],
-                translations: []
-              },
-              {
-                text: 'Cafè bord [o cafè de pobre]: Planta de la família de les papilionàcies, de flors grogues i fruit terminat en un bec ganxut, pròpia del Mediterrani meridional, i que, en determinades contrades, ha reemplaçat el cafè veritable en èpoques de carestia (Astragalus boeticus).',
-                examples: [],
-                translations: []
-              }
-            ],
-            
-            videos: [
-              {
-                url: 'https://signbank.upf.com/images/LSC_-_Cafe.mp4',
-                angle: 'Frontal',
-                priority: 1
-              }
-            ]
-          }
-        ],
-        // Add related words - Arma and Coll are related
-        relatedWords: []
-      }
+      createdAt: new Date(),
+      updatedAt: new Date(),
     },
   });
 
-  await prisma.words.create({
-    data: {
-      status: WordStatus.PUBLISHED,
-      currentVersion: 1,
-      isCreatedFromRequest: false,
-      isCreatedFromEdit: false,
-      
-      // Word data using the Word type
-      wordData: {
-        word: 'Camell',
-        isNative: true,
-        register: 'Estàndard',
+  // Create senses for COLL
+  const collSenses = await Promise.all([
+    // First sense: Human neck
+    prisma.sense.create({
+      data: {
+        senseTitle: 'Coll (part del cos)',
+        priority: 1,
         lexicalCategory: LexicalCategory.NOUN,
-        dominantHand: Hand.RIGHT,
-        facialExpression: 'Neutral',
-        hasContact: false,
-        
-        senses: [
-          {
-            priority: 1,
-            dominantHand: Hand.RIGHT,
-            facialExpression: 'Neutral',
-            hasContact: true,
-            movementType: 'Moviment del signe camell',
-            nonManualComponents: 'Pronunciar Cafe',
-            morphologicalVariants: '-',
-            phonologicalTranscription: '-',
-            usageFrequency: 'Comú',
-            usageEra: 'Contemporani',
-            
-            descriptions: [
+        glossDataId: collGlossData.id,
+        senseTranslations: {
+          create: [
+            {
+              translation: 'Coll (part del cos)',
+              language: Language.CATALAN,
+            },
+            {
+              translation: 'Cuello (parte del cuerpo)',
+              language: Language.SPANISH,
+            },
+            {
+              translation: 'Neck (body part)',
+              language: Language.ENGLISH,
+            },
+          ],
+        },
+        examples: {
+          create: [
+            {
+              example: 'Em fa mal el coll',
+              exampleVideoURL: 'videos/LSC_-_Cap.mp4',
+              exampleTranslations: {
+                create: [
+                  {
+                    translation: 'Me duele el cuello',
+                    language: Language.SPANISH,
+                  },
+                  {
+                    translation: 'Em fa mal el coll',
+                    language: Language.CATALAN,
+                  },
+                  {
+                    translation: 'My neck hurts',
+                    language: Language.ENGLISH,
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      },
+    }),
+    // Second sense: Bottle neck
+    prisma.sense.create({
+      data: {
+        senseTitle: 'Coll (d\'ampolla)',
+        priority: 2,
+        lexicalCategory: LexicalCategory.NOUN,
+        glossDataId: collGlossData.id,
+        senseTranslations: {
+          create: [
+            {
+              translation: 'Coll (d\'ampolla)',
+              language: Language.CATALAN,
+            },
+            {
+              translation: 'Cuello (de botella)',
+              language: Language.SPANISH,
+            },
+            {
+              translation: 'Neck (of a bottle)',
+              language: Language.ENGLISH,
+            },
+          ],
+        },
+        examples: {
+          create: [
+            {
+              example: 'S\'ha trencat el coll de l\'ampolla',
+              exampleVideoURL: 'videos/LSC_-_Cames.mp4',
+              exampleTranslations: {
+                create: [
+                  {
+                    translation: 'Se ha roto el cuello de la botella',
+                    language: Language.SPANISH,
+                  },
+                  {
+                    translation: 'S\'ha trencat el coll de l\'ampolla',
+                    language: Language.CATALAN,
+                  },
+                  {
+                    translation: 'The bottle neck broke',
+                    language: Language.ENGLISH,
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      },
+    }),
+    // Third sense: Mountain pass
+    prisma.sense.create({
+      data: {
+        senseTitle: 'Coll (de muntanya)',
+        priority: 3,
+        lexicalCategory: LexicalCategory.NOUN,
+        glossDataId: collGlossData.id,
+        senseTranslations: {
+          create: [
+            {
+              translation: 'Coll (de muntanya)',
+              language: Language.CATALAN,
+            },
+            {
+              translation: 'Puerto (de montaña)',
+              language: Language.SPANISH,
+            },
+            {
+              translation: 'Mountain pass',
+              language: Language.ENGLISH,
+            },
+          ],
+        },
+        examples: {
+          create: [
+            {
+              example: 'Hem arribat al coll de la muntanya',
+              exampleVideoURL: 'videos/LSC_-_Cap.mp4',
+              exampleTranslations: {
+                create: [
+                  {
+                    translation: 'Hemos llegado al puerto de la montaña',
+                    language: Language.SPANISH,
+                  },
+                  {
+                    translation: 'Hem arribat al coll de la muntanya',
+                    language: Language.CATALAN,
+                  },
+                  {
+                    translation: 'We\'ve reached the mountain pass',
+                    language: Language.ENGLISH,
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      },
+    }),
+  ]);
+
+  // Create definitions for each sense
+  await Promise.all(
+    collSenses.map((sense) =>
+      prisma.definition.create({
+        data: {
+          title: sense.senseTitle === 'Human neck' 
+            ? 'Coll (part del cos)'
+            : sense.senseTitle === 'Bottle neck'
+            ? 'Coll (d\'ampolla)'
+            : 'Coll (de muntanya)',
+          definition: sense.senseTitle === 'Human neck' 
+            ? 'Part del cos queuneix el cap amb el tronc'
+            : sense.senseTitle === 'Bottle neck'
+            ? 'Part estreta i allargada d\'una ampolla o recipient similar'
+            : 'Depressió en una carena muntanyosa que permet el pas entre dues valls',
+          videoDefinitionUrl: sense.senseTitle === 'Human neck' 
+            ? 'videos/LSC_-_Cap.mp4'
+            : sense.senseTitle === 'Bottle neck'
+            ? 'videos/LSC_-_Cames.mp4'
+            : 'videos/LSC_-_Camell.mp4',
+          senseId: sense.id,
+          definitionTranslations: {
+            create: [
               {
-                text: 'Mamífer artiodàctil del gènere Camelus, de la família dels camèlids, de dimensions grans i cos robust, amb potes llargues i primes i coll llarg, fort i flexible, que té al dors un o dos geps.',
-                examples: ['El meu camell és molt gros'],
-                translations: [
-                  { text: 'Camel', language: Language.ENGLISH },
-                  { text: 'Camell', language: Language.SPANISH }
-                ]
+                translation: sense.senseTitle === 'Human neck' 
+                  ? 'Part del cos queuneix el cap amb el tronc'
+                  : sense.senseTitle === 'Bottle neck'
+                  ? 'Part estret i allargada d\'una ampolla o recipient similar'
+                  : 'Depressió en una carena muntanyosa que permet el pas entre dues valls',
+                language: Language.CATALAN,
               },
               {
-                text: 'Persona que comercia amb droga a la menuda.',
-                examples: ['El seu vei es camell'],
-                translations: []
-              }
-            ],
-            
-            videos: [
+                translation: sense.senseTitle === 'Human neck'
+                  ? 'Parte del cuerpo que une la cabeza con el tronco'
+                  : sense.senseTitle === 'Bottle neck'
+                  ? 'Parte estrecha y alargada de una botella o recipiente similar'
+                  : 'Depresión en una cadena montañosa que permite el paso entre dos valles',
+                language: Language.SPANISH,
+              },
               {
-                url: 'https://signbank.upf.com/images/LSC_-_Camell.mp4',
-                angle: 'Frontal',
-                priority: 1
-              }
-            ]
-          }
-        ],
-        // Add related words - Arma and Coll are related
-        relatedWords: []
-      }
-    },
-  });
-  
-  await prisma.words.create({
+                translation: sense.senseTitle === 'Human neck'
+                  ? 'Part of the body that connects the head to the torso'
+                  : sense.senseTitle === 'Bottle neck'
+                  ? 'Narrow and elongated part of a bottle or similar container'
+                  : 'Depression in a mountain range that allows passage between two valleys',
+                language: Language.ENGLISH,
+              },
+            ],
+          },
+        },
+      })
+    )
+  );
+
+  // Create sign videos for each sense
+  await Promise.all(
+    collSenses.map((sense) =>
+      prisma.signVideo.create({
+        data: {
+          title: `COLL - ${sense.senseTitle}`,
+          priority: 1,
+          glossData: {
+            connect: {
+              id: collGlossData.id
+            }
+          },
+          videoData: {
+            create: {
+              hands: sense.senseTitle === 'Coll (part del cos)' ? Hand.RIGHT : Hand.BOTH,
+              configuration: HandConfiguration.CONF_1,
+              configurationChanges: ConfigurationChange.BENDING,
+              relationBetweenArticulators: RelationBetweenArticulators.ABOVE,
+              location: sense.senseTitle === 'Coll (part del cos)' ? Location.NECK : Location.NEUTRAL_SPACE,
+              movementRelatedOrientation: MovementRelatedOrientation.FRONT,
+              orientationRelatedToLocation: OrientationRelatedToLocation.AO_FINGERS_CONTRA,
+              orientationChange: OrientationChange.EXTENSION,
+              contactType: ContactType.CONTINUOUS,
+              movementType: MovementType.STRAIGHT,
+              movementDirection: MovementDirection.BACKWARDS,
+              vocalization: "none",
+              nonManualComponent: "none",
+              inicialization: "none",
+              repeatedMovement: false,
+            }
+          },
+          videos: {
+            create: [
+              {
+                url: `videos/LSC_-_Cap.mp4`,
+                angle: 'front',
+                priority: 1,
+              },
+              {
+                url: `videos/LSC_-_Capa.mp4`,
+                angle: 'side',
+                priority: 2,
+              },
+              {
+                url: `videos/LSC_-_Car.mp4`,
+                angle: 'close-up',
+                priority: 3,
+              },
+            ],
+          },
+        },
+      })
+    )
+  );
+
+  // Create dictionary entry for COLL
+  await prisma.dictionaryEntry.create({
     data: {
-      status: WordStatus.PUBLISHED,
+      status: GlossStatus.PUBLISHED,
       currentVersion: 1,
-      isCreatedFromRequest: false,
-      isCreatedFromEdit: false,
-      
-      // Word data using the Word type
-      wordData: {
-        word: 'Cames',
-        isNative: true,
-        register: 'Estàndard',
-        lexicalCategory: LexicalCategory.NOUN,
-        dominantHand: Hand.RIGHT,
-        facialExpression: 'Neutral',
-        hasContact: false,
-        
-        senses: [
-          {
-            priority: 1,
-            dominantHand: Hand.RIGHT,
-            facialExpression: 'Neutral',
-            hasContact: true,
-            movementType: 'Moviment del signe cames',
-            nonManualComponents: 'Pronunciar Cames',
-            morphologicalVariants: '-',
-            phonologicalTranscription: '-',
-            usageFrequency: 'Comú',
-            usageEra: 'Contemporani',
-            
-            descriptions: [
-              {
-                text: 'Extremitat inferior del cos humà, que va des del genoll fins al peu.',
-                examples: ['Les meves cames estan cansades', 'Té unes cames molt llargues'],
-                translations: [
-                  { text: 'Legs', language: Language.ENGLISH },
-                  { text: 'Piernas', language: Language.SPANISH }
-                ]
-              }
-            ],
-            
-            videos: [
-              {
-                url: 'https://signbank.upf.com/images/LSC_-_Cames.mp4',
-                angle: 'Frontal',
-                priority: 1
-              }
-            ]
-          }
-        ],
-        relatedWords: []
-      }
+      glossDataId: collGlossData.id,
+      createdAt: new Date(),
+      updatedAt: new Date(),
     },
   });
 
-  await prisma.words.create({
+  // Create CONTENT gloss data
+  const contentGlossData = await prisma.glossData.create({
     data: {
-      isCreatedFromRequest: false,
-      isCreatedFromEdit: false,
-      
-      // Word data using the Word type
-      wordData: {
-        word: 'Cami',
-        isNative: true,
-        register: 'Estàndard',
-        lexicalCategory: LexicalCategory.NOUN,
-        dominantHand: Hand.RIGHT,
-        facialExpression: 'Neutral',
-        hasContact: false,
-        
-        senses: [
-          {
-            priority: 1,
-            dominantHand: Hand.RIGHT,
-            facialExpression: 'Neutral',
-            hasContact: true,
-            movementType: 'Moviment del signe cami',
-            nonManualComponents: 'Pronunciar Cami',
-            morphologicalVariants: '-',
-            phonologicalTranscription: '-',
-            usageFrequency: 'Comú',
-            usageEra: 'Contemporani',
-            
-            descriptions: [
-              {
-                text: 'Via que es fa servir per anar d\'un lloc a un altre.',
-                examples: ['El cami era molt llarg', 'Van perdre el cami'],
-                translations: [
-                  { text: 'Path', language: Language.ENGLISH },
-                  { text: 'Camino', language: Language.SPANISH }
-                ]
-              }
-            ],
-            
-            videos: [
-              {
-                url: 'https://signbank.upf.com/images/LSC_-_Cami.mp4',
-                angle: 'Frontal',
-                priority: 1
-              }
-            ]
-          }
-        ],
-        relatedWords: []
-      }
+      gloss: 'CONTENT',
+      currentVersion: 1,
+      createdAt: new Date(),
+      updatedAt: new Date(),
     },
   });
 
-  await prisma.words.create({
+  // Create FELIÇ gloss data
+  const felicGlossData = await prisma.glossData.create({
     data: {
-      status: WordStatus.PUBLISHED,
+      gloss: 'FELIÇ',
       currentVersion: 1,
-      isCreatedFromRequest: false,
-      isCreatedFromEdit: false,
-      
-      // Word data using the Word type
-      wordData: {
-        word: 'Cap',
-        isNative: true,
-        register: 'Estàndard',
-        lexicalCategory: LexicalCategory.NOUN,
-        dominantHand: Hand.RIGHT,
-        facialExpression: 'Neutral',
-        hasContact: false,
-        
-        senses: [
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+  });
+
+  // Create sense for CONTENT
+  const contentSense = await prisma.sense.create({
+    data: {
+      senseTitle: '',
+      priority: 1,
+      lexicalCategory: LexicalCategory.ADJECTIVE,
+      glossDataId: contentGlossData.id,
+      senseTranslations: {
+        create: [
           {
-            priority: 1,
-            dominantHand: Hand.RIGHT,
-            facialExpression: 'Neutral',
-            hasContact: true,
-            movementType: 'Moviment del signe cap (part del cos)',
-            nonManualComponents: 'Pronunciar Cap',
-            morphologicalVariants: '-',
-            phonologicalTranscription: '-',
-            usageFrequency: 'Comú',
-            usageEra: 'Contemporani',
-            
-            descriptions: [
-              {
-                text: 'Part superior del cos dels animals vertebrats que conté el cervell, els principals òrgans dels sentits i l\'extrem superior o anterior del tub digestiu.',
-                examples: ['Em fa mal el cap', 'Va moure el cap'],
-                translations: [
-                  { text: 'Head', language: Language.ENGLISH },
-                  { text: 'Cabeza', language: Language.SPANISH }
-                ]
-              }
-            ],
-            
-            videos: [
-              {
-                url: 'https://signbank.upf.com/images/LSC_-_Cap.mp4',
-                angle: 'Frontal',
-                priority: 1
-              }
-            ]
+            translation: 'Content',
+            language: Language.CATALAN,
           },
           {
+            translation: 'Contento',
+            language: Language.SPANISH,
+          },
+          {
+            translation: 'Happy',
+            language: Language.ENGLISH,
+          },
+        ],
+      },
+      examples: {
+        create: [
+          {
+            example: 'Estic molt content amb els resultats',
+            exampleVideoURL: 'videos/LSC_-_Cap.mp4',
+            exampleTranslations: {
+              create: [
+                {
+                  translation: 'Estoy muy contento con los resultados',
+                  language: Language.SPANISH,
+                },
+                {
+                  translation: 'Estic molt content amb els resultats',
+                  language: Language.CATALAN,
+                },
+                {
+                  translation: 'I am very happy with the results',
+                  language: Language.ENGLISH,
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  });
+
+  // Create sense for FELIÇ
+  const felicSense = await prisma.sense.create({
+    data: {
+      senseTitle: '',
+      priority: 1,
+      lexicalCategory: LexicalCategory.ADJECTIVE,
+      glossDataId: felicGlossData.id,
+      senseTranslations: {
+        create: [
+          {
+            translation: 'Feliç',
+            language: Language.CATALAN,
+          },
+          {
+            translation: 'Feliz',
+            language: Language.SPANISH,
+          },
+          {
+            translation: 'Happy',
+            language: Language.ENGLISH,
+          },
+        ],
+      },
+      examples: {
+        create: [
+          {
+            example: 'Avui em sento molt feliç',
+            exampleVideoURL: 'videos/LSC_-_Cames.mp4',
+            exampleTranslations: {
+              create: [
+                {
+                  translation: 'Hoy me siento muy feliz',
+                  language: Language.SPANISH,
+                },
+                {
+                  translation: 'Avui em sento molt feliç',
+                  language: Language.CATALAN,
+                },
+                {
+                  translation: 'Today I feel very happy',
+                  language: Language.ENGLISH,
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  });
+
+  // Create definitions for CONTENT
+  await prisma.definition.create({
+    data: {
+      title: '',
+      definition: 'Estat d\'ànim de qui se sent satisfet',
+      videoDefinitionUrl: 'videos/LSC_-_Camell.mp4',
+      senseId: contentSense.id,
+      definitionTranslations: {
+        create: [
+          {
+            translation: 'Estat d\'ànim de qui se sent satisfet',
+            language: Language.CATALAN,
+          },
+          {
+            translation: 'Estado de ánimo de quien se siente satisfecho',
+            language: Language.SPANISH,
+          },
+          {
+            translation: 'State of mind of someone who feels satisfied',
+            language: Language.ENGLISH,
+          },
+        ],
+      },
+    },
+  });
+
+  // Create definitions for FELIÇ
+  await prisma.definition.create({
+    data: {
+      title: '',
+      definition: 'Que experimenta un estat de satisfacció i benestar',
+      videoDefinitionUrl: 'videos/LSC_-_Car.mp4',
+      senseId: felicSense.id,
+      definitionTranslations: {
+        create: [
+          {
+            translation: 'Que experimenta un estat de satisfacció i benestar',
+            language: Language.CATALAN,
+          },
+          {
+            translation: 'Que experimenta un estado de satisfacción y bienestar',
+            language: Language.SPANISH,
+          },
+          {
+            translation: 'Experiencing a state of satisfaction and well-being',
+            language: Language.ENGLISH,
+          },
+        ],
+      },
+    },
+  });
+
+  // Create sign videos with different phonological parameters for CONTENT
+  await prisma.signVideo.create({
+    data: {
+      title: '',
+      priority: 1,
+      glossData: {
+        connect: {
+          id: contentGlossData.id
+        }
+      },
+      videoData: {
+        create: {
+          hands: Hand.BOTH,
+          configuration: HandConfiguration.CONF_8,
+          configurationChanges: ConfigurationChange.OPENING_AND_SPREADING,
+          relationBetweenArticulators: RelationBetweenArticulators.CROSS,
+          location: Location.CHEST,
+          movementRelatedOrientation: MovementRelatedOrientation.FRONT,
+          orientationRelatedToLocation: OrientationRelatedToLocation.AO_FINGERS_CONTRA,
+          orientationChange: OrientationChange.FLEXION,
+          contactType: ContactType.BRUSH,
+          movementType: MovementType.SPIRAL,
+          movementDirection: MovementDirection.BACKWARDS,
+          vocalization: "none",
+          nonManualComponent: "smile",
+          inicialization: "none",
+          repeatedMovement: false,
+        }
+      },
+      videos: {
+        create: [
+          {
+            url: 'videos/LSC_-_Camell.mp4',
+            angle: 'front',
+            priority: 1,
+          },
+          {
+            url: 'videos/LSC_-_Cap.mp4',
+            angle: 'side',
             priority: 2,
-            dominantHand: Hand.RIGHT,
-            facialExpression: 'Negació',
-            hasContact: false,
-            movementType: 'Moviment del signe cap (negació)',
-            nonManualComponents: 'Pronunciar Cap amb expressió de negació',
-            morphologicalVariants: '-',
-            phonologicalTranscription: '-',
-            usageFrequency: 'Comú',
-            usageEra: 'Contemporani',
-            
-            descriptions: [
-              {
-                text: 'Ni un, ningú, res; absència total.',
-                examples: ['No hi ha cap persona', 'No en queda cap'],
-                translations: [
-                  { text: 'None', language: Language.ENGLISH },
-                  { text: 'Ninguno', language: Language.SPANISH }
-                ]
-              }
-            ],
-            
-            videos: [
-              {
-                url: 'https://signbank.upf.com/images/LSC_-_Cap.mp4',
-                angle: 'Frontal',
-                priority: 1
-              }
-            ]
+          },
+        ],
+      },
+    },
+  });
+
+  // Create sign videos with different phonological parameters for FELIÇ
+  await prisma.signVideo.create({
+    data: {
+      title: '',
+      priority: 1,
+      glossData: {
+        connect: {
+          id: felicGlossData.id
+        }
+      },
+      videoData: {
+        create: {
+          hands: Hand.RIGHT,
+          configuration: HandConfiguration.CONF_15,
+          configurationChanges: ConfigurationChange.CLOSING_AND_WIGGLING,
+          relationBetweenArticulators: RelationBetweenArticulators.FRONT,
+          location: Location.CHEEK,
+          movementRelatedOrientation: MovementRelatedOrientation.FRONT,
+          orientationRelatedToLocation: OrientationRelatedToLocation.AO_FINGERS_CONTRA,
+          orientationChange: OrientationChange.EXTENSION_AND_PRONATION,
+          contactType: ContactType.DOUBLE,
+          movementType: MovementType.CIRCLE,
+          movementDirection: MovementDirection.BACKWARDS,
+          vocalization: "none",
+          nonManualComponent: "smile with cheek puff",
+          inicialization: "none",
+          repeatedMovement: false,
+        }
+      },
+      videos: {
+        create: [
+          {
+            url: 'videos/LSC_-_Cames.mp4',
+            angle: 'front',
+            priority: 1,
           },
           {
-            priority: 3,
-            dominantHand: Hand.RIGHT,
-            facialExpression: 'Neutral',
-            hasContact: false,
-            movementType: 'Moviment del signe cap (direcció)',
-            nonManualComponents: 'Pronunciar Cap',
-            morphologicalVariants: '-',
-            phonologicalTranscription: '-',
-            usageFrequency: 'Comú',
-            usageEra: 'Contemporani',
-            
-            descriptions: [
-              {
-                text: 'En direcció a, vers.',
-                examples: ['Anem cap a casa', 'Mira cap allà'],
-                translations: [
-                  { text: 'Towards', language: Language.ENGLISH },
-                  { text: 'Hacia', language: Language.SPANISH }
-                ]
-              }
-            ],
-            
-            videos: [
-              {
-                url: 'https://signbank.upf.com/images/LSC_-_Cap.mp4',
-                angle: 'Frontal',
-                priority: 1
-              }
-            ]
-          }
+            url: 'videos/LSC_-_Car.mp4',
+            angle: 'side',
+            priority: 2,
+          },
         ],
-        relatedWords: []
-      }
+      },
     },
   });
 
-  await prisma.words.create({
+  // Create dictionary entries for both signs
+  await prisma.dictionaryEntry.create({
     data: {
-      status: WordStatus.PUBLISHED,
+      status: GlossStatus.PUBLISHED,
       currentVersion: 1,
-      isCreatedFromRequest: false,
-      isCreatedFromEdit: false,
-      
-      // Word data using the Word type
-      wordData: {
-        word: 'Capa',
-        isNative: true,
-        register: 'Estàndard',
-        lexicalCategory: LexicalCategory.NOUN,
-        dominantHand: Hand.RIGHT,
-        facialExpression: 'Neutral',
-        hasContact: false,
-        
-        senses: [
-          {
-            priority: 1,
-            dominantHand: Hand.RIGHT,
-            facialExpression: 'Neutral',
-            hasContact: true,
-            movementType: 'Moviment del signe capa',
-            nonManualComponents: 'Pronunciar Capa',
-            morphologicalVariants: '-',
-            phonologicalTranscription: '-',
-            usageFrequency: 'Comú',
-            usageEra: 'Contemporani',
-            
-            descriptions: [
-              {
-                text: 'Peça de roba llarga, folgada, oberta de davant, sense mànigues, que es porta tirada a les espatlles cobrint el vestit.',
-                examples: ['Porta una capa negra', 'La capa el protegia del fred'],
-                translations: [
-                  { text: 'Cape', language: Language.ENGLISH },
-                  { text: 'Capa', language: Language.SPANISH }
-                ]
-              }
-            ],
-            
-            videos: [
-              {
-                url: 'https://signbank.upf.com/images/LSC_-_Capa.mp4',
-                angle: 'Frontal',
-                priority: 1
-              }
-            ]
-          }
-        ],
-        relatedWords: []
-      }
+      glossDataId: contentGlossData.id,
+      createdAt: new Date(),
+      updatedAt: new Date(),
     },
   });
 
-  await prisma.words.create({
+  await prisma.dictionaryEntry.create({
     data: {
-      status: WordStatus.PUBLISHED,
+      status: GlossStatus.PUBLISHED,
       currentVersion: 1,
-      isCreatedFromRequest: false,
-      isCreatedFromEdit: false,
-      
-      // Word data using the Word type
-      wordData: {
-        word: 'Car',
-        isNative: true,
-        register: 'Estàndard',
-        lexicalCategory: LexicalCategory.ADJECTIVE,
-        dominantHand: Hand.RIGHT,
-        facialExpression: 'Neutral',
-        hasContact: false,
-        
-        senses: [
-          {
-            priority: 1,
-            dominantHand: Hand.RIGHT,
-            facialExpression: 'Neutral',
-            hasContact: true,
-            movementType: 'Moviment del signe car',
-            nonManualComponents: 'Pronunciar Car',
-            morphologicalVariants: '-',
-            phonologicalTranscription: '-',
-            usageFrequency: 'Comú',
-            usageEra: 'Contemporani',
-            
-            descriptions: [
-              {
-                text: 'Que té un preu elevat, que costa molt de diners.',
-                examples: ['Aquest cotxe és molt car', 'El pis era massa car'],
-                translations: [
-                  { text: 'Expensive', language: Language.ENGLISH },
-                  { text: 'Caro', language: Language.SPANISH }
-                ]
-              }
-            ],
-            
-            videos: [
-              {
-                url: 'https://signbank.upf.com/images/LSC_-_Car.mp4',
-                angle: 'Frontal',
-                priority: 1
-              }
-            ]
-          }
-        ],
-        relatedWords: []
-      }
+      glossDataId: felicGlossData.id,
+      createdAt: new Date(),
+      updatedAt: new Date(),
     },
   });
 
-  await prisma.words.create({
+  // Create synonym relation between CONTENT and FELIÇ
+  await prisma.relatedGloss.create({
     data: {
-      status: WordStatus.PUBLISHED,
-      currentVersion: 1,
-      isCreatedFromRequest: false,
-      isCreatedFromEdit: false,
-      
-      // Word data using the Word type
-      wordData: {
-        word: 'Cara',
-        isNative: true,
-        register: 'Estàndard',
-        lexicalCategory: LexicalCategory.NOUN,
-        dominantHand: Hand.RIGHT,
-        facialExpression: 'Neutral',
-        hasContact: false,
-        
-        senses: [
-          {
-            priority: 1,
-            dominantHand: Hand.RIGHT,
-            facialExpression: 'Neutral',
-            hasContact: true,
-            movementType: 'Moviment del signe cara',
-            nonManualComponents: 'Pronunciar Cara',
-            morphologicalVariants: '-',
-            phonologicalTranscription: '-',
-            usageFrequency: 'Comú',
-            usageEra: 'Contemporani',
-            
-            descriptions: [
-              {
-                text: 'Part anterior del cap, on hi ha els ulls, el nas i la boca.',
-                examples: ['Té una cara molt expressiva', 'Es va rentar la cara'],
-                translations: [
-                  { text: 'Face', language: Language.ENGLISH },
-                  { text: 'Cara', language: Language.SPANISH }
-                ]
-              }
-            ],
-            
-            videos: [
-              {
-                url: 'https://signbank.upf.com/images/LSC_-_Cara_1.mp4',
-                angle: 'Frontal',
-                priority: 1
-              },
-              {
-                url: 'https://signbank.upf.com/images/LSC_-_Cara_2.mp4',
-                angle: 'Frontal',
-                priority: 2
-              }
-            ]
-          }
-        ],
-        relatedWords: []
-      }
+      relationType: RelationType.SYNONYM,
+      sourceGlossId: contentGlossData.id,
+      targetGlossId: felicGlossData.id,
     },
   });
 
-  await prisma.words.create({
+  // Create PETIT gloss data
+  const petitGlossData = await prisma.glossData.create({
     data: {
-      status: WordStatus.PUBLISHED,
+      gloss: 'PETIT',
       currentVersion: 1,
-      isCreatedFromRequest: false,
-      isCreatedFromEdit: false,
-      
-      // Word data using the Word type
-      wordData: {
-        word: 'Casa',
-        isNative: true,
-        register: 'Estàndard',
-        lexicalCategory: LexicalCategory.NOUN,
-        dominantHand: Hand.RIGHT,
-        facialExpression: 'Neutral',
-        hasContact: false,
-        
-        senses: [
-          {
-            priority: 1,
-            dominantHand: Hand.RIGHT,
-            facialExpression: 'Neutral',
-            hasContact: true,
-            movementType: 'Moviment del signe casa',
-            nonManualComponents: 'Pronunciar Casa',
-            morphologicalVariants: '-',
-            phonologicalTranscription: '-',
-            usageFrequency: 'Comú',
-            usageEra: 'Contemporani',
-            
-            descriptions: [
-              {
-                text: 'Edifici destinat a l\'habitatge de persones.',
-                examples: ['Viu en una casa gran', 'La casa té un jardí'],
-                translations: [
-                  { text: 'House', language: Language.ENGLISH },
-                  { text: 'Casa', language: Language.SPANISH }
-                ]
-              }
-            ],
-            
-            videos: [
-              {
-                url: 'https://signbank.upf.com/images/LSC_-_Casa.mp4',
-                angle: 'Frontal',
-                priority: 1
-              }
-            ]
-          }
-        ],
-        relatedWords: []
-      }
+      createdAt: new Date(),
+      updatedAt: new Date(),
     },
   });
 
-  await prisma.words.create({
+  // Create GRAN gloss data
+  const granGlossData = await prisma.glossData.create({
     data: {
-      status: WordStatus.PUBLISHED,
+      gloss: 'GRAN',
       currentVersion: 1,
-      isCreatedFromRequest: false,
-      isCreatedFromEdit: false,
-      
-      // Word data using the Word type
-      wordData: {
-        word: 'Casat',
-        isNative: true,
-        register: 'Estàndard',
-        lexicalCategory: LexicalCategory.NOUN,
-        dominantHand: Hand.RIGHT,
-        facialExpression: 'Neutral',
-        hasContact: false,
-        
-        senses: [
-          {
-            priority: 1,
-            dominantHand: Hand.RIGHT,
-            facialExpression: 'Neutral',
-            hasContact: true,
-            movementType: 'Moviment del signe casat',
-            nonManualComponents: 'Pronunciar Casat',
-            morphologicalVariants: '-',
-            phonologicalTranscription: '-',
-            usageFrequency: 'Comú',
-            usageEra: 'Contemporani',
-            
-            descriptions: [
-              {
-                text: 'Estat de tenir un cònjuge o una cònjuge.',
-                examples: ['Està casat amb una persona meravellosa', 'El seu estat civil és casat'],
-                translations: [
-                  { text: 'Married', language: Language.ENGLISH },
-                  { text: 'Casado', language: Language.SPANISH }
-                ]
-              }
-            ],
-            
-            videos: [
-              {
-                url: 'https://signbank.upf.com/images/LSC_-_Casat_casada.mp4',
-                angle: 'Frontal',
-                priority: 1
-              }
-            ]
-          }
-        ],
-        relatedWords: []
-      }
+      createdAt: new Date(),
+      updatedAt: new Date(),
     },
   });
 
-  await prisma.words.create({
+  // Create BANC gloss data
+  const bancGlossData = await prisma.glossData.create({
     data: {
-      status: WordStatus.PUBLISHED,
+      gloss: 'BANC',
       currentVersion: 1,
-      isCreatedFromRequest: false,
-      isCreatedFromEdit: false,
-      
-      // Word data using the Word type
-      wordData: {
-        word: 'Dur',
-        isNative: true,
-        register: 'Estàndard',
-        lexicalCategory: LexicalCategory.ADJECTIVE,
-        dominantHand: Hand.RIGHT,
-        facialExpression: 'Neutral',
-        hasContact: false,
-        
-        senses: [
-          {
-            priority: 1,
-            dominantHand: Hand.RIGHT,
-            facialExpression: 'Neutral',
-            hasContact: true,
-            movementType: 'Moviment del signe dur',
-            nonManualComponents: 'Pronunciar Dur',
-            morphologicalVariants: '-',
-            phonologicalTranscription: '-',
-            usageFrequency: 'Comú',
-            usageEra: 'Contemporani',
-            
-            descriptions: [
-              {
-                text: 'Que té una consistència ferma o difícil de trencar.',
-                examples: ['El material és molt dur', 'El gel és dur'],
-                translations: [
-                  { text: 'Hard', language: Language.ENGLISH },
-                  { text: 'Duro', language: Language.SPANISH }
-                ]
-              }
-            ],
-            
-            videos: [
-              {
-                url: 'https://signbank.upf.com/images/LSC_-_Dur_dura.mp4',
-                angle: 'Frontal',
-                priority: 1
-              }
-            ]
-          }
-        ],
-        relatedWords: []
-      }
+      createdAt: new Date(),
+      updatedAt: new Date(),
     },
   });
 
-  await prisma.words.create({
+  // Create SOTA gloss data
+  const sotaGlossData = await prisma.glossData.create({
     data: {
-      status: WordStatus.PUBLISHED,
+      gloss: 'SOTA',
       currentVersion: 1,
-      isCreatedFromRequest: false,
-      isCreatedFromEdit: false,
-      
-      // Word data using the Word type
-      wordData: {
-        word: 'Xocolata',
-        isNative: true,
-        register: 'Estàndard',
-        lexicalCategory: LexicalCategory.NOUN,
-        dominantHand: Hand.RIGHT,
-        facialExpression: 'Neutral',
-        hasContact: false,
-        
-        senses: [
-          {
-            priority: 1,
-            dominantHand: Hand.RIGHT,
-            facialExpression: 'Neutral',
-            hasContact: true,
-            movementType: 'Moviment del signe xocolata',
-            nonManualComponents: 'Pronunciar Xocolata',
-            morphologicalVariants: '-',
-            phonologicalTranscription: '-',
-            usageFrequency: 'Comú',
-            usageEra: 'Contemporani',
-            
-            descriptions: [
-              {
-                text: 'Producte alimentari obtingut a partir de la fruita del cacau, que es pot consumir en diverses formes, com a beguda o en forma sòlida.',
-                examples: ["M'agrada la xocolata negra", "La xocolata és dolça"],
-                translations: [
-                  { text: 'Chocolate', language: Language.ENGLISH },
-                  { text: 'Chocolate', language: Language.SPANISH }
-                ]
-              }
-            ],
-            
-            videos: [
-              {
-                url: 'https://signbank.upf.com/images/LSC_-_Xocolata.mp4',
-                angle: 'Frontal',
-                priority: 1
-              }
-            ]
-          }
-        ],
-        relatedWords: []
-      }
+      createdAt: new Date(),
+      updatedAt: new Date(),
     },
   });
-  console.log('Created words with new schema structure');
-  console.log('Seeding finished.');
+
+  // Create SOBRE gloss data
+  const sobreGlossData = await prisma.glossData.create({
+    data: {
+      gloss: 'SOBRE',
+      currentVersion: 1,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+  });
+
+  // Create senses for PETIT
+  const petitSense = await prisma.sense.create({
+    data: {
+      senseTitle: '',
+      priority: 1,
+      lexicalCategory: LexicalCategory.ADJECTIVE,
+      glossDataId: petitGlossData.id,
+      senseTranslations: {
+        create: [
+          {
+            translation: 'Petit',
+            language: Language.CATALAN,
+          },
+          {
+            translation: 'Pequeño',
+            language: Language.SPANISH,
+          },
+          {
+            translation: 'Small',
+            language: Language.ENGLISH,
+          },
+        ],
+      },
+      examples: {
+        create: [
+          {
+            example: 'El gos és molt petit',
+            exampleVideoURL: 'videos/LSC_-_Cap.mp4',
+            exampleTranslations: {
+              create: [
+                {
+                  translation: 'El perro es muy pequeño',
+                  language: Language.SPANISH,
+                },
+                {
+                  translation: 'El gos és molt petit',
+                  language: Language.CATALAN,
+                },
+                {
+                  translation: 'The dog is very small',
+                  language: Language.ENGLISH,
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  });
+
+  // Create senses for GRAN
+  const granSense = await prisma.sense.create({
+    data: {
+      senseTitle: '',
+      priority: 1,
+      lexicalCategory: LexicalCategory.ADJECTIVE,
+      glossDataId: granGlossData.id,
+      senseTranslations: {
+        create: [
+          {
+            translation: 'Gran',
+            language: Language.CATALAN,
+          },
+          {
+            translation: 'Grande',
+            language: Language.SPANISH,
+          },
+          {
+            translation: 'Big',
+            language: Language.ENGLISH,
+          },
+        ],
+      },
+      examples: {
+        create: [
+          {
+            example: 'La casa és molt gran',
+            exampleVideoURL: 'videos/LSC_-_Cames.mp4',
+            exampleTranslations: {
+              create: [
+                {
+                  translation: 'La casa es muy grande',
+                  language: Language.SPANISH,
+                },
+                {
+                  translation: 'La casa és molt gran',
+                  language: Language.CATALAN,
+                },
+                {
+                  translation: 'The house is very big',
+                  language: Language.ENGLISH,
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  });
+
+  // Create senses for BANC (two senses: bank and bench)
+  const bancSense1 = await prisma.sense.create({
+    data: {
+      senseTitle: 'Banc (entitat financera)',
+      priority: 1,
+      lexicalCategory: LexicalCategory.NOUN,
+      glossDataId: bancGlossData.id,
+      senseTranslations: {
+        create: [
+          {
+            translation: 'Banc (institució financera)',
+            language: Language.CATALAN,
+          },
+          {
+            translation: 'Banco (institución financiera)',
+            language: Language.SPANISH,
+          },
+          {
+            translation: 'Bank (financial institution)',
+            language: Language.ENGLISH,
+          },
+        ],
+      },
+      examples: {
+        create: [
+          {
+            example: 'He d\'anar al banc',
+            exampleVideoURL: 'videos/LSC_-_Car.mp4',
+            exampleTranslations: {
+              create: [
+                {
+                  translation: 'Tengo que ir al banco',
+                  language: Language.SPANISH,
+                },
+                {
+                  translation: 'He d\'anar al banc',
+                  language: Language.CATALAN,
+                },
+                {
+                  translation: 'I have to go to the bank',
+                  language: Language.ENGLISH,
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  });
+
+  const bancSense2 = await prisma.sense.create({
+    data: {
+      senseTitle: 'Banc (seient)',
+      priority: 2,
+      lexicalCategory: LexicalCategory.NOUN,
+      glossDataId: bancGlossData.id,
+      senseTranslations: {
+        create: [
+          {
+            translation: 'Banc (seient)',
+            language: Language.CATALAN,
+          },
+          {
+            translation: 'Banco (asiento)',
+            language: Language.SPANISH,
+          },
+          {
+            translation: 'Bench (seat)',
+            language: Language.ENGLISH,
+          },
+        ],
+      },
+      examples: {
+        create: [
+          {
+            example: 'Seu al banc del parc',
+            exampleVideoURL: 'videos/LSC_-_Camell.mp4',
+            exampleTranslations: {
+              create: [
+                {
+                  translation: 'Siéntate en el banco del parque',
+                  language: Language.SPANISH,
+                },
+                {
+                  translation: 'Seu al banc del parc',
+                  language: Language.CATALAN,
+                },
+                {
+                  translation: 'Sit on the park bench',
+                  language: Language.ENGLISH,
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  });
+
+  // Create senses for SOTA
+  const sotaSense = await prisma.sense.create({
+    data: {
+      senseTitle: '',
+      priority: 1,
+      lexicalCategory: LexicalCategory.PARTICLE,
+      glossDataId: sotaGlossData.id,
+      senseTranslations: {
+        create: [
+          {
+            translation: 'Sota',
+            language: Language.CATALAN,
+          },
+          {
+            translation: 'Debajo',
+            language: Language.SPANISH,
+          },
+          {
+            translation: 'Under',
+            language: Language.ENGLISH,
+          },
+        ],
+      },
+      examples: {
+        create: [
+          {
+            example: 'El gat és sota la taula',
+            exampleVideoURL: 'videos/LSC_-_Cap.mp4',
+            exampleTranslations: {
+              create: [
+                {
+                  translation: 'El gato está debajo de la mesa',
+                  language: Language.SPANISH,
+                },
+                {
+                  translation: 'El gat és sota la taula',
+                  language: Language.CATALAN,
+                },
+                {
+                  translation: 'The cat is under the table',
+                  language: Language.ENGLISH,
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  });
+
+  // Create senses for SOBRE
+  const sobreSense = await prisma.sense.create({
+    data: {
+      senseTitle: '',
+      priority: 1,
+      lexicalCategory: LexicalCategory.ADVERB,
+      glossDataId: sobreGlossData.id,
+      senseTranslations: {
+        create: [
+          {
+            translation: 'Sobre',
+            language: Language.CATALAN,
+          },
+          {
+            translation: 'Encima',
+            language: Language.SPANISH,
+          },
+          {
+            translation: 'Over',
+            language: Language.ENGLISH,
+          },
+        ],
+      },
+      examples: {
+        create: [
+          {
+            example: 'El llibre és sobre la taula',
+            exampleVideoURL: 'videos/LSC_-_Cames.mp4',
+            exampleTranslations: {
+              create: [
+                {
+                  translation: 'El libro está encima de la mesa',
+                  language: Language.SPANISH,
+                },
+                {
+                  translation: 'El llibre és sobre la taula',
+                  language: Language.CATALAN,
+                },
+                {
+                  translation: 'The book is on the table',
+                  language: Language.ENGLISH,
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  });
+
+  // Create second sense for SOBRE (envelope)
+  const sobreSense2 = await prisma.sense.create({
+    data: {
+      senseTitle: '',
+      priority: 2,
+      lexicalCategory: LexicalCategory.NOUN,
+      glossDataId: sobreGlossData.id,
+      senseTranslations: {
+        create: [
+          {
+            translation: 'Sobre (per a cartes)',
+            language: Language.CATALAN,
+          },
+          {
+            translation: 'Sobre (para cartas)',
+            language: Language.SPANISH,
+          },
+          {
+            translation: 'Envelope',
+            language: Language.ENGLISH,
+          },
+        ],
+      },
+      examples: {
+        create: [
+          {
+            example: 'Posa la carta dins el sobre',
+            exampleVideoURL: 'videos/LSC_-_Car.mp4',
+            exampleTranslations: {
+              create: [
+                {
+                  translation: 'Pon la carta dentro del sobre',
+                  language: Language.SPANISH,
+                },
+                {
+                  translation: 'Posa la carta dins el sobre',
+                  language: Language.CATALAN,
+                },
+                {
+                  translation: 'Put the letter in the envelope',
+                  language: Language.ENGLISH,
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  });
+
+  // Create definitions and videos for each sense
+  await Promise.all([
+    // PETIT definition
+    prisma.definition.create({
+      data: {
+        title: '',
+        definition: 'De dimensions o grandària reduïdes',
+        videoDefinitionUrl: 'videos/LSC_-_Cap.mp4',
+        senseId: petitSense.id,
+        definitionTranslations: {
+          create: [
+            {
+              translation: 'De dimensions o grandària reduïdes',
+              language: Language.CATALAN,
+            },
+            {
+              translation: 'De dimensiones o tamaño reducidos',
+              language: Language.SPANISH,
+            },
+            {
+              translation: 'Of reduced dimensions or size',
+              language: Language.ENGLISH,
+            },
+          ],
+        },
+      },
+    }),
+    // GRAN definition
+    prisma.definition.create({
+      data: {
+        title: '',
+        definition: 'De dimensions o grandària considerables',
+        videoDefinitionUrl: 'videos/LSC_-_Cames.mp4',
+        senseId: granSense.id,
+        definitionTranslations: {
+          create: [
+            {
+              translation: 'De dimensions o grandària considerables',
+              language: Language.CATALAN,
+            },
+            {
+              translation: 'De dimensiones o tamaño considerables',
+              language: Language.SPANISH,
+            },
+            {
+              translation: 'Of considerable dimensions or size',
+              language: Language.ENGLISH,
+            },
+          ],
+        },
+      },
+    }),
+    // BANC definitions (both senses)
+    prisma.definition.create({
+      data: {
+        title: '',
+        definition: 'Entitat financera que administra i presta diners',
+        videoDefinitionUrl: 'videos/LSC_-_Car.mp4',
+        senseId: bancSense1.id,
+        definitionTranslations: {
+          create: [
+            {
+              translation: 'Entitat financera que administra i presta diners',
+              language: Language.CATALAN,
+            },
+            {
+              translation: 'Entidad financiera que administra y presta dinero',
+              language: Language.SPANISH,
+            },
+            {
+              translation: 'Financial institution that manages and lends money',
+              language: Language.ENGLISH,
+            },
+          ],
+        },
+      },
+    }),
+    prisma.definition.create({
+      data: {
+        title: '',
+        definition: 'Seient llarg amb respatller o sense',
+        videoDefinitionUrl: 'videos/LSC_-_Camell.mp4',
+        senseId: bancSense2.id,
+        definitionTranslations: {
+          create: [
+            {
+              translation: 'Seient llarg amb respatller o sense',
+              language: Language.CATALAN,
+            },
+            {
+              translation: 'Asiento largo con o sin respaldo',
+              language: Language.SPANISH,
+            },
+            {
+              translation: 'Long seat with or without a backrest',
+              language: Language.ENGLISH,
+            },
+          ],
+        },
+      },
+    }),
+    // SOTA definition
+    prisma.definition.create({
+      data: {
+        title: '',
+        definition: 'En una posició inferior respecte a alguna cosa',
+        videoDefinitionUrl: 'videos/LSC_-_Cap.mp4',
+        senseId: sotaSense.id,
+        definitionTranslations: {
+          create: [
+            {
+              translation: 'En una posició inferior respecte a alguna cosa',
+              language: Language.CATALAN,
+            },
+            {
+              translation: 'En una posición inferior respecto a algo',
+              language: Language.SPANISH,
+            },
+            {
+              translation: 'In a position below something',
+              language: Language.ENGLISH,
+            },
+          ],
+        },
+      },
+    }),
+    // SOBRE definition
+    prisma.definition.create({
+      data: {
+        title: '',
+        definition: 'En una posició superior respecte a alguna cosa',
+        videoDefinitionUrl: 'videos/LSC_-_Cames.mp4',
+        senseId: sobreSense.id,
+        definitionTranslations: {
+          create: [
+            {
+              translation: 'En una posició superior respecte a alguna cosa',
+              language: Language.CATALAN,
+            },
+            {
+              translation: 'En una posición superior respecto a algo',
+              language: Language.SPANISH,
+            },
+            {
+              translation: 'In a position above something',
+              language: Language.ENGLISH,
+            },
+          ],
+        },
+      },
+    }),
+    // SOBRE (envelope) definition
+    prisma.definition.create({
+      data: {
+        title: '',
+        definition: 'Coberta de paper dins la qual es posa una carta o un document per enviar-lo',
+        videoDefinitionUrl: 'videos/LSC_-_Car.mp4',
+        senseId: sobreSense2.id,
+        definitionTranslations: {
+          create: [
+            {
+              translation: 'Coberta de paper dins la qual es posa una carta o un document per enviar-lo',
+              language: Language.CATALAN,
+            },
+            {
+              translation: 'Cubierta de papel dentro de la cual se pone una carta o documento para enviarlo',
+              language: Language.SPANISH,
+            },
+            {
+              translation: 'Paper covering in which a letter or document is placed for sending',
+              language: Language.ENGLISH,
+            },
+          ],
+        },
+      },
+    }),
+  ]);
+
+  // Create sign videos for each sense with different phonological parameters
+  await Promise.all([
+    // PETIT sign video
+    prisma.signVideo.create({
+      data: {
+        title: '',
+        priority: 1,
+        glossData: {
+          connect: {
+            id: petitGlossData.id
+          }
+        },
+        videoData: {
+          create: {
+            hands: Hand.BOTH,
+            configuration: HandConfiguration.CONF_23,
+            configurationChanges: ConfigurationChange.CLOSING_AND_RUBBING,
+            relationBetweenArticulators: RelationBetweenArticulators.INSIDE,
+            location: Location.NEUTRAL_SPACE,
+            movementRelatedOrientation: MovementRelatedOrientation.FRONT,
+            orientationRelatedToLocation: OrientationRelatedToLocation.AO_FINGERS_CONTRA,
+            orientationChange: OrientationChange.PRONATION,
+            contactType: ContactType.CONTINUOUS_TO_FINAL,
+            movementType: MovementType.MOTIVATED_SHAPE,
+            movementDirection: MovementDirection.BACKWARDS,
+            vocalization: 'none',
+            nonManualComponent: 'cheeks in',
+            inicialization: 'none',
+          }
+        },
+        videos: {
+          create: [
+            {
+              url: 'videos/LSC_-_Cap.mp4',
+              angle: 'front',
+              priority: 1,
+            },
+            {
+              url: 'videos/LSC_-_Cames.mp4',
+              angle: 'side',
+              priority: 2,
+            },
+          ],
+        },
+      },
+    }),
+    // GRAN sign video
+    prisma.signVideo.create({
+      data: {
+        title: '',
+        priority: 1,
+        glossData: {
+          connect: {
+            id: granGlossData.id
+          }
+        },
+        videoData: {
+          create: {
+            hands: Hand.BOTH,
+            configuration: HandConfiguration.CONF_31,
+            configurationChanges: ConfigurationChange.OPENING_AND_RUBBING,
+            relationBetweenArticulators: RelationBetweenArticulators.ABOVE_BELOW,
+            location: Location.NEUTRAL_SPACE,
+            movementRelatedOrientation: MovementRelatedOrientation.FRONT,
+            orientationRelatedToLocation: OrientationRelatedToLocation.AO_FINGERS_CONTRA,
+            orientationChange: OrientationChange.SUPINATION,
+            contactType: ContactType.INITIAL,
+            movementType: MovementType.ZIGZAG,
+            movementDirection: MovementDirection.BACKWARDS,
+            vocalization: "none",
+            nonManualComponent: "cheeks out",
+            inicialization: "none",
+          }
+        },
+        videos: {
+          create: [
+            {
+              url: 'videos/LSC_-_Camell.mp4',
+              angle: 'front',
+              priority: 1,
+            },
+            {
+              url: 'videos/LSC_-_Car.mp4',
+              angle: 'side',
+              priority: 2,
+            },
+          ],
+        },
+      },
+    }),
+    // BANC sign videos (both senses)
+    prisma.signVideo.create({
+      data: {
+        title: '',
+        priority: 1,
+        glossData: {
+          connect: {
+            id: bancGlossData.id
+          }
+        },
+        videoData: {
+          create: {
+            hands: Hand.RIGHT,
+            configuration: HandConfiguration.CONF_12,
+            configurationChanges: ConfigurationChange.UNBENDING,
+            relationBetweenArticulators: RelationBetweenArticulators.FRONT,
+            location: Location.WEAK_HAND_PALM,
+            movementRelatedOrientation: MovementRelatedOrientation.FRONT,
+            orientationRelatedToLocation: OrientationRelatedToLocation.AO_FINGERS_CONTRA,
+            orientationChange: OrientationChange.RADIAL_AND_ULNAR_FLEXION,
+            contactType: ContactType.CONTINUOUS,
+            movementType: MovementType.CROSS,
+            movementDirection: MovementDirection.BACKWARDS,
+            vocalization: "none",
+            nonManualComponent: "none",
+            inicialization: "none",
+          }
+        },
+        videos: {
+          create: [
+            {
+              url: 'videos/LSC_-_Cap.mp4',
+              angle: 'front',
+              priority: 1,
+            },
+            {
+              url: 'videos/LSC_-_Car.mp4',
+              angle: 'side',
+              priority: 2,
+            },
+          ],
+        },
+      },
+    }),
+    prisma.signVideo.create({
+      data: {
+        title: '',
+        priority: 2,
+        glossData: {
+          connect: {
+            id: bancGlossData.id
+          }
+        },
+        videoData: {
+          create: {
+            hands: Hand.BOTH,
+            configuration: HandConfiguration.CONF_18,
+            configurationChanges: ConfigurationChange.CURVING,
+            relationBetweenArticulators: RelationBetweenArticulators.NEXT_TO,
+            location: Location.HORIZONTAL_PLANE,
+            movementRelatedOrientation: MovementRelatedOrientation.FRONT,
+            orientationRelatedToLocation: OrientationRelatedToLocation.AO_FINGERS_CONTRA,
+            orientationChange: OrientationChange.ROTATION,
+            contactType: ContactType.CONTINUOUS,
+            movementType: MovementType.STRAIGHT_TO_CIRCLE,
+            movementDirection: MovementDirection.BACKWARDS,
+            vocalization: "none",
+            nonManualComponent: "none",
+            inicialization: "none",
+          }
+        },
+        videos: {
+          create: [
+            {
+              url: 'videos/LSC_-_Cames.mp4',
+              angle: 'front',
+              priority: 1,
+            },
+            {
+              url: 'videos/LSC_-_Camell.mp4',
+              angle: 'side',
+              priority: 2,
+            },
+          ],
+        },
+      },
+    }),
+    // SOTA sign video
+    prisma.signVideo.create({
+      data: {
+        title: '',
+        priority: 1,
+        glossData: {
+          connect: {
+            id: sotaGlossData.id
+          }
+        },
+        videoData: {
+          create: {
+            hands: Hand.RIGHT,
+            configuration: HandConfiguration.CONF_25,
+            configurationChanges: ConfigurationChange.OPENING_AND_WIGGLING,
+            relationBetweenArticulators: RelationBetweenArticulators.BELOW,
+            location: Location.WEAK_HAND_PALM,
+            movementRelatedOrientation: MovementRelatedOrientation.FRONT,
+            orientationRelatedToLocation: OrientationRelatedToLocation.AO_FINGERS_CONTRA,
+            orientationChange: OrientationChange.ULNAR_FLEXION,
+            contactType: ContactType.NONE_TO_INITIAL,
+            movementType: MovementType.ARC,
+            movementDirection: MovementDirection.BACKWARDS,
+            vocalization: "none",
+            nonManualComponent: "none",
+            inicialization: "none",
+          }
+        },
+        videos: {
+          create: [
+            {
+              url: 'videos/LSC_-_Cap.mp4',
+              angle: 'front',
+              priority: 1,
+            },
+            {
+              url: 'videos/LSC_-_Car.mp4',
+              angle: 'side',
+              priority: 2,
+            },
+          ],
+        },
+      },
+    }),
+    // SOBRE sign video
+    prisma.signVideo.create({
+      data: {
+        title: '',
+        priority: 1,
+        glossData: {
+          connect: {
+            id: sobreGlossData.id
+          }
+        },
+        videoData: {
+          create: {
+            hands: Hand.RIGHT,
+            configuration: HandConfiguration.CONF_35,
+            configurationChanges: ConfigurationChange.OPENING_TO_CLOSING,
+            relationBetweenArticulators: RelationBetweenArticulators.ABOVE,
+            location: Location.WEAK_HAND_PALM,
+            movementRelatedOrientation: MovementRelatedOrientation.FRONT,
+            orientationRelatedToLocation: OrientationRelatedToLocation.AO_FINGERS_CONTRA,
+            orientationChange: OrientationChange.PRONATION_TO_FLEXION,
+            contactType: ContactType.FINAL_TO_CONTINUOUS,
+            movementType: MovementType.STRAIGHT,
+            movementDirection: MovementDirection.BACKWARDS,
+            vocalization: "none",
+            nonManualComponent: "none",
+            inicialization: "none",
+          }
+        },
+        videos: {
+          create: [
+            {
+              url: 'videos/LSC_-_Cames.mp4',
+              angle: 'front',
+              priority: 1,
+            },
+            {
+              url: 'videos/LSC_-_Camell.mp4',
+              angle: 'side',
+              priority: 2,
+            },
+          ],
+        },
+      },
+    }),
+    // SOBRE (envelope) sign video
+    prisma.signVideo.create({
+      data: {
+        title: '',
+        priority: 3,
+        glossData: {
+          connect: {
+            id: sobreGlossData.id
+          }
+        },
+        videoData: {
+          create: {
+            hands: Hand.BOTH,
+            configuration: HandConfiguration.CONF_42,
+            configurationChanges: ConfigurationChange.CLOSING_TO_OPENING,
+            relationBetweenArticulators: RelationBetweenArticulators.FRONT_BACK,
+            location: Location.NEUTRAL_SPACE,
+            movementRelatedOrientation: MovementRelatedOrientation.FRONT,
+            orientationRelatedToLocation: OrientationRelatedToLocation.AO_FINGERS_CONTRA,
+            orientationChange: OrientationChange.SUPINATION_TO_PRONATION,
+            contactType: ContactType.CONTINUOUS_TO_NONE,
+            movementType: MovementType.MOTIVATED_SHAPE,
+            movementDirection: MovementDirection.BACKWARDS,
+            vocalization: 'none',
+            nonManualComponent: 'none',
+            inicialization: 'none',
+          }
+        },
+        videos: {
+          create: [
+            {
+              url: 'videos/LSC_-_Car.mp4',
+              angle: 'front',
+              priority: 1,
+            },
+            {
+              url: 'videos/LSC_-_Cap.mp4',
+              angle: 'side',
+              priority: 2,
+            },
+          ],
+        },
+      },
+    }),
+  ]);
+
+  // Create dictionary entries for all new signs
+  await Promise.all([
+    prisma.dictionaryEntry.create({
+      data: {
+        status: GlossStatus.PUBLISHED,
+        currentVersion: 1,
+        glossDataId: petitGlossData.id,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    }),
+    prisma.dictionaryEntry.create({
+      data: {
+        status: GlossStatus.PUBLISHED,
+        currentVersion: 1,
+        glossDataId: granGlossData.id,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    }),
+    prisma.dictionaryEntry.create({
+      data: {
+        status: GlossStatus.PUBLISHED,
+        currentVersion: 1,
+        glossDataId: bancGlossData.id,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    }),
+    prisma.dictionaryEntry.create({
+      data: {
+        status: GlossStatus.PUBLISHED,
+        currentVersion: 1,
+        glossDataId: sotaGlossData.id,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    }),
+    prisma.dictionaryEntry.create({
+      data: {
+        status: GlossStatus.PUBLISHED,
+        currentVersion: 1,
+        glossDataId: sobreGlossData.id,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    }),
+  ]);
+
+  // Create relationships between signs
+  await Promise.all([
+    // Antonym relation between PETIT and GRAN
+    prisma.relatedGloss.create({
+      data: {
+        relationType: RelationType.ANTONYM,
+        sourceGlossId: petitGlossData.id,
+        targetGlossId: granGlossData.id,
+      },
+    }),
+    // Minimal pair relation between SOTA and SOBRE
+    prisma.minimalPair.create({
+      data: {
+        distinction: "Location (above vs below)",
+        sourceGlossId: sotaGlossData.id,
+        targetGlossId: sobreGlossData.id,
+      },
+    }),
+  ]);
+
+  console.log('Seed data created successfully');
 }
 
 main()

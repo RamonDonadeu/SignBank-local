@@ -14,8 +14,11 @@ export default defineConfig(() => {
     // https://v2.quasar.dev/quasar-cli-vite/boot-files
     boot: [
       'i18n',
-      'axios'
+      'axios',
+      'auth'
     ],
+
+
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#css
     css: [
@@ -38,6 +41,9 @@ export default defineConfig(() => {
 
     // Full list of options: https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#build
     build: {
+      env: {
+        BASE_URL: process.env.BASE_URL
+      },
       target: {
         browser: ['es2022', 'firefox115', 'chrome115', 'safari14'],
         node: 'node20'
@@ -97,12 +103,13 @@ export default defineConfig(() => {
     devServer: {
       port: 443,
       host: '0.0.0.0',
+      allowedHosts: [process.env.BASE_URL || 'localhost'],
       /* headers: {
         "Access-Control-Allow-Origin": "*",
       }, */
       hmr: {
         clientPort: 443,
-        host: 'signbank.upf.com',
+        host: process.env.BASE_URL || 'localhost',
         path: '/ws',
         protocol: 'wss'
       }
@@ -120,12 +127,12 @@ export default defineConfig(() => {
           'dark-page': '#121212',
 
           positive: '#21BA45',
-          negative: '#C10015',
+          negative: '#8B0000',
           info: '#31CCEC',
           warning: '#F2C037'
         }
       },
-      plugins: ['Notify'],
+      plugins: ['Notify', 'Dialog'],
       lang: 'es'
     },
 

@@ -1,6 +1,9 @@
+import esES from './es-ES';
 import enUS from './en-US';
-import esCA from './es-CA';
+import caES from './ca-ES';
+
 export default {
+  'ca-ES': caES,
+  'es-ES': esES,
   'en-US': enUS,
-  'es-CA': esCA,
 };
